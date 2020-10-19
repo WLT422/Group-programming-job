@@ -42,15 +42,18 @@ def save_images(image_list, content):
     for image in image_list:
         image.save(content + '/' + str(index) + '.jpg', 'JPEG') #将切图保存在本地方便之后匹配
         index += 1
-
-
+        
+        
+"""
+       
+# 图库切片已单独放在cut.py中
 # 输入一个文件名称（与原图文件名一样，不包括后缀）,将图像切片并新建一个与图像文件名相同的文件夹（如果该文件夹不存在的话），并将切片保存在其中
-# 注意，需要在当前目录下有存放各原图切片结果文件夹的tiles文件夹，且要有存放完整原图的original_img文件夹
+# 注意，需要在当前目录下有存放各原图切片结果文件夹文件夹，且要有存放完整原图的文件夹
 # 所有图片均为jpg格式
 def original_partition(dir):
-    dirs = 'd:/jiedui/base'  # 当前目录下的tiles目录，用于存放所有原图的切片结果
-    file_path1 = "d:/jiedui/data"  # 当前目录下的original_img文件夹
-    file_path2 = dir + '.jpg'  # 输入original_img文件夹中的jpg文件全名（包括.jpg后缀）
+    dirs = 'd:/jiedui/base'  # 用于存放所有原图的切片结果
+    file_path1 = "d:/jiedui/data"  # 当前目录下的文件夹
+    file_path2 = dir + '.jpg'  # 输入文件夹中的jpg文件全名（包括.jpg后缀）
     file_path = os.path.join(file_path1, file_path2)  # 组合成完整的源文件（待切片的图片）路径
 
     image = Image.open(file_path)  # 打开图片
@@ -58,14 +61,13 @@ def original_partition(dir):
     image = fill_image(image)  # 将图片填充为方形
     image_list = cut_image(image, 3)  # 切割图片（3*3）
 
-    # 在tiles文件夹里再建一个文件夹，存放一张原图的所有切片，文件夹的名字与原图文件名（不包括后缀）一样
+    # 在存放乱序原图文件夹里再建一个文件夹，存放一张原图的所有切片，文件夹的名字与原图文件名（不包括后缀）一样
     dir_path = os.path.join(dirs, dir)  # 组合成完整的目标文件夹路径
     # 判断文件夹是否存在，若不存在则创建目标文件夹
     if not os.path.exists(dir_path):
         os.makedirs(dir_path)
     save_images(image_list, dir_path)  # 保存切片结果
-
-
+   """
 
 def img_match(img_base64):
     img = base64.b64decode(img_base64)  # 将从接口获取的base64编码转字符串
