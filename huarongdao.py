@@ -25,7 +25,7 @@ def fill_image(image):
 
 # 切图(n * n)
 def cut_image(image, n):
-    width, height = image.size
+    width, height = image.size #获取边长
     item_width = int(width / n) #每块切图边长为宽的n分之一
     box_list = [] #定义一个空列表用来之后保存分割的图片
     for i in range(0, n):
