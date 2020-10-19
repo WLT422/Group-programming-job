@@ -124,16 +124,253 @@ def img_match(img_base64):
     # 返回初始状态（列表）、空白块位置、目标状态（列表）
     return  ori_list, blank, tmp_list
 
+class Board:
+    def __init__(oneself, ori_list, pos, step=0, preboard=None, prepath=""):
+        oneself.ori_list = ori_list
+        oneself.pos = pos
+        oneself.step = step
+        oneself.cost = oneself.cal_cost()
+        oneself.preboard = preboard
+        oneself.prepath = prepath
+    #计算移动代价
+    def cal_cost(oneself):
+        count = 0
+        sheet = [[0, 0], [0, 1], [0, 2],
+                 [1, 0], [1, 1], [1, 2],
+                 [2, 0], [2, 1], [2, 2]]#每个位置的坐标
+        for i in range(9):
+            if oneself.ori_list[i] < 0:
+                continue
+            count += abs(sheet[i][0] - sheet[oneself.ori_list[i]][0]) + abs(sheet[i][1] - sheet[oneself.ori_list[i]][1]) #启发函数
+        # cost = count + oneself.step
+        # return cost
+        return count + oneself.step
+
+
+class IDAstar:
+    # 当白块在9个位置时可以移动的方向，-1代表无法移动
+    # w上, d右, s下, a左
+    d = [[-1, 1, 3, -1],  # 0
+         [-1, 2, 4, 0],  # 1
+         [-1, -1, 5, 1],  # 2
+         [0, 4, 6, -1],  # 3
+         [1, 5, 7, 3],  # 4
+         [2, -1, 8, 4],  # 5
+         [3, 7, -1, -1],  # 6
+         [4, 8, -1, 6],  # 7
+         [5, -1, -1, 7]]  # 8
+    # 将移动方向的序列转化为'w', 'd', 's', 'a'，上，右，下，左
+    index_to_direct = ['w', 'd', 's', 'a']
+    swap_record = {}    # 用于记录强制交换阶段的交换方案
+    # forced_mark = True  # 标记最初的强制交换是否可解，若可解则不能自由交换
+    no_swap_exe = True  # 标记是否执行了强制交换
+    find_sol = False  # 标记是否解决8 puzzle问题
+
+    def __init__(oneself, start, pos, target, step_num, swap_scheme):
+        # 初始状态、白块初始位置、目标状态、第几步进行强制交换、强制交换的最初方案
+        # step_num为数字、swap_scheme为两个元素的列表
+        IDAstar.start = start
+        IDAstar.pos = pos
+        IDAstar.target = target
+        IDAstar.init = Board(start, pos)
+        IDAstar.maxdep = 0   # 搜索的最大深度
+        IDAstar.path = ""
+        IDAstar.step_num = step_num
+        IDAstar.swap_scheme = swap_scheme
+        # 判断目标状态的逆序对数是奇数还是偶数，当前状态必须与目标状态同奇同偶才可解
+        IDAstar.solvable = Judge_even(target)
+        swap_record = {}    # 用于记录强制交换阶段的交换方案
+        # print("IDAstar.solvable: ", IDAstar.solvable)
+
+    def dfs(oneself, now, lastd, n):
+        if now.ori_list == oneself.target: 
+            oneself.find_sol = True
+            return True
+
+        # swap_mark = False  # 强制交换的标记，若本次搜索用到了强制交换，则为True
+        # 强制交换, n 表示当前的步数
+
+        if oneself.no_swap_exe and n == oneself.step_num:
+            scheme = oneself.forced_exchange(now.ori_list)
+            oneself.no_swap_exe = False
+            now.ori_list[scheme[0]], now.ori_list[scheme[1]] = now.ori_list[scheme[1]], now.ori_list[scheme[0]]
+            now.step = 0    # 强制交换后，从头搜索
+            # 记录白块位置
+            for i in range(len(now.ori_list)):
+                if now.ori_list[i] < 0:
+                    now.pos = i
+                    break
+            now.cost = now.cal_cost()  # 交换后重新计算代价
+            oneself.maxdep = now.cost  # 重新计算最大深度
+            oneself.init.ori_list = copy.deepcopy(now.ori_list)
+            oneself.init.pos = now.pos
+            oneself.init.step = now.step
+            oneself.init.cost = now.cost
+            oneself.swap_scheme = copy.deepcopy(scheme)  # 记录交换方案
+            return True
+
+        # 基于f值的强力剪枝
+        if now.cost > oneself.maxdep:
+            return False
+
+        pos = now.pos
+        step = now.step
+        for i in range(4):
+            # 方向不可走时
+            if oneself.d[pos][i] == -1:
+                continue
+            # 0, 1, 2, 3
+            # w, d, s, a
+            # 上一步为向左，此步则不能向右走老路，其他方向同理。
+            if (lastd == -1) or (lastd % 2) != (i % 2) or (lastd == i):
+                ori_list = copy.deepcopy(now.ori_list)
+                ori_list[pos], ori_list[oneself.d[pos][i]] = ori_list[oneself.d[pos][i]], ori_list[pos]
+                # 构造函数形式：
+                temp = Board(ori_list, oneself.d[pos][i], step + 1, now, oneself.index_to_direct[i])
+                # 如果找到最短路径，递归地记录路径
+                if oneself.dfs(temp, i, n+1):
+                    oneself.path += temp.prepath
+                    return True
+        return False
+
+    def IDA(oneself):
+        oneself.maxdep = oneself.init.cost
+        while not oneself.dfs(oneself.init, -1, 0):
+            oneself.maxdep += 1
+        #迭代加深
+        tmp_path = oneself.path[::-1]
+        oneself.path = ""
+        if not oneself.find_sol:
+            while not oneself.dfs(oneself.init, -1, 0):
+                oneself.maxdep += 1
+        oneself.path = tmp_path + oneself.path[::-1]
+        return oneself.path
+
+    # 在当前状态ori_list进行强制交换，若强制交换导致无解，则紧接着进行一次自由交换
+    # 返回强制交换的方案
+    def forced_exchange(oneself, ori_list):
+        # 交换两个块
+        tmp0 = copy.deepcopy(ori_list)
+        if oneself.swap_scheme[0] != oneself.swap_scheme[1]:
+            tmp0[oneself.swap_scheme[0]], tmp0[oneself.swap_scheme[1]] = tmp0[oneself.swap_scheme[1]], tmp0[oneself.swap_scheme[0]]
+        # 若最初的强制交换不会造成无解，则返回
+        if Judge_even(tmp0) == oneself.solvable:
+            return oneself.swap_scheme
+        # 否则，进行自由交换
+        else:
+            # 先要强制交换，在强制交换的基础上自由交换
+            ori_list[oneself.swap_scheme[0]], ori_list[oneself.swap_scheme[1]] = ori_list[oneself.swap_scheme[1]], ori_list[oneself.swap_scheme[0]]
+            # 双重循环，遍历可自由交换出的所有状态
+            for i in range(8):
+                for j in range(i+1, 9):
+                    tmp = copy.deepcopy(tmp0)
+                    tmp[i], tmp[j] = tmp[j], tmp[i]
+                    if Judge_even(tmp) == oneself.solvable:
+                        for k in range(len(tmp)):
+                            if tmp[k] < 0:
+                                break
+                        tmp_board = Board(tmp, k)
+                        cost_h = tmp_board.cost
+                        # 以cost_h为键，交换方案为值，可能会有多个方案的cost_h相同的情况，但字典中只记录一个
+                        oneself.swap_record[cost_h] = [i, j]
+            m = min(oneself.swap_record)  # 找到最小的代价
+            oneself.swap_scheme = copy.deepcopy(oneself.swap_record[m])
+            return oneself.swap_scheme  # 返回最小代价对应的交换方案
+
+# 归并函数，返回一趟归并的逆序对数
+def merge(listA, tmpA, L, R, RightEnd):
+    # L为待归并数组中，左半个数组的首元素下标；R为右半个数组的首元素下标
+    # RightEnd为待归并数组最后一个元素的下标
+    cnt = 0
+    LeftEnd = R-1  # 左半个数组最后一个元素的下标
+    tmp = L
+    NumElements = RightEnd-L+1  # 待归并数组元素总数
+    while (L <= LeftEnd) and (R <= RightEnd):
+        if listA[L] <= listA[R]:
+            tmpA[tmp] = listA[L]
+            tmp += 1
+            L += 1
+        else:
+            tmpA[tmp] = listA[R]
+            tmp += 1
+            R += 1
+            cnt += LeftEnd-L+1
+    while L <= LeftEnd:
+        tmpA[tmp] = listA[L]
+        tmp += 1
+        L += 1
+    while R <= RightEnd:
+        tmpA[tmp] = listA[R]
+        tmp += 1
+        R += 1
+    for i in range(NumElements):
+        listA[RightEnd] = tmpA[RightEnd]
+        RightEnd -= 1
+    return cnt
+
+
+# 循环进行归并排序，返回以len为步长进行归并排序得到的逆序对数
+def merge_pass(listA, tmpA, N, len):
+    # 一趟归并（采用循环方法，非递归）
+    cnt = 0
+    double_len = 2*len
+    i = 0  # 需要提前声明，否则会报错（变量i在声明前就被使用）
+    for i in range(0, N-double_len+1, double_len):
+        cnt += merge(listA, tmpA, i, i+len, i+double_len-1)
+    if (i + len) < N:
+        cnt += merge(listA, tmpA, i, i+len, N-1)
+    else:
+        for j in range(i, N):
+            tmpA[j] = listA[j]
+    return cnt
+
+
+# 基于归并排序求列表中逆序对的数目
+def inverse_number(listA, N):
+    # 使用非递归的方法实现基于归并排序的逆序对数目计数
+    len = 1
+    cnt = 0
+    tmpA = [0]
+    tmpA = tmpA*N
+    while len < N:
+        cnt += merge_pass(listA, tmpA, N, len)
+        len *= 2
+        cnt += merge_pass(tmpA, listA, N, len)
+        len *= 2
+    return cnt
+
+
+# 判断列表中逆序对数的奇偶，若为偶，返回True
+# 计算逆序对数时，不算空白块
+def Judge_even(listA):
+    n = len(listA)
+    # inverse_number函数会进行归并排序，破坏原列表，故先拷贝一份
+    tmp = copy.deepcopy(listA)
+    for i in range(n):
+        if tmp[i] < 0:
+            del tmp[i]
+            n -= 1
+            break
+    cnt = inverse_number(tmp, n)
+    if (cnt % 2) == 0:
+        return True
+    else:
+        return False
+
+
+
+
+
+
+
 
 
 
 
 
     
-
 """
-
-
+#出题
 url_1 = "http://47.102.118.1:8089/api/challenge/create"
 jie = {
     "teamid": 54,
@@ -157,12 +394,13 @@ print(res)
 """
 
 
-"""
 
+#获取题目列表
 url_3 = "http://47.102.118.1:8089/api/challenge/list"
 res = requests.get(url=url_3)
 res = json.loads(res.text)
 #print(res)
+#循环答题
 for i in range(len(res)):
     str_1 = parse.quote_plus(res[i]['uuid'])
     url_4 = "http://47.102.118.1:8089/api/challenge/start/" 
@@ -205,8 +443,9 @@ for i in range(len(res)):
     print(res_3)
     print("################################")
 
+
 """
-"""
+#获取个人排名
 url_7 = "http://47.102.118.1:8089/api/teamdetail/54"
 req = requests.get(url=url_7)
 req = json.loads(req.text)
